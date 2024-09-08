@@ -1,11 +1,11 @@
-openai>=1.2.4
-coverage
-pytest
-requests~=2.31.0
-fastapi
-uvicorn
-pillow
-streamlit
-google-generativeai
-gpt4all
-demjson3
+openai==1.44.0
+coverage==7.3.1
+pytest==7.4.0
+requests==2.31.0
+fastapi==0.103.1
+uvicorn==0.21.1
+pillow==9.4.0
+streamlit==1.36.0
+google-generativeai==0.7.2
+gpt4all  # Version varies, so keep this flexible
+demjson3==3.0.6
