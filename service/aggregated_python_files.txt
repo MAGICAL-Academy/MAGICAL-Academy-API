@@ -1,0 +1,1117 @@
+
+
+# File: ./GoogleGenerativeAI.py
+
+import google.generativeai as palm
+import os
+import json
+
+
+class GoogleGenerativeAIWrapper:
+    def __init__(self):
+        palm.configure(api_key=os.environ['GOOGLE_AI_KEY'])
+
+    def generate_text(self, prompt: str = "The opposite of hot is"):
+        response = palm.generate_text(prompt=prompt)
+        return response.result  # Outputs: 'cold.'
+
+    def generate_exercise(self, age, difficulty, scenario, character):
+        # Generate the prompt for the exercise
+        prompt = f"""
+            You are a friendly math tutor specializing in teaching young children, 
+            specifically {age}-year-olds, the basics of arithmetic in a fun and engaging way. 
+            Your goal is to create a simple and enjoyable arithmetic exercise 
+            that helps a {age}-year-old understand age-appropriate arithmetic. The exercise should involve arithmetic 
+            of two small numbers.
+            write story followed by an exercise framed in an imaginary setting of {scenario} and the main character
+            is {character}. response in json"""
+
+        # Generate text using GPT4All
+        response = self.generate_text(prompt=prompt)
+        processed_response = self.process_response(response)
+        return processed_response
+
+    def process_response(self, response):
+        try:
+            # Clean the response string
+            # Remove leading and trailing non-JSON characters (like backticks or 'json' markers)
+            cleaned_response = response.strip("`")
+
+            # Parse the cleaned JSON string
+            parsed_response = json.loads(cleaned_response)
+
+            # Return the parsed JSON as a dictionary
+            return parsed_response
+        except json.JSONDecodeError as e:
+            # Handle JSON parsing errors
+            print("Failed to decode JSON:", e)
+            return response
+
+
+# File: ./aggregate_python_files.py
+
+import os
+
+
+def aggregate_python_files(root_dir, output_file):
+    # Initialize an empty string to store all the content
+    all_content = ""
+
+    # Walk through all directories and files
+    for dirpath, dirnames, filenames in os.walk(root_dir):
+        for filename in filenames:
+            if filename.endswith('.py'):
+                file_path = os.path.join(dirpath, filename)
+
+                # Add a header for each file
+                all_content += f"\n\n# File: {file_path}\n\n"
+
+                # Read and append the content of the file
+                with open(file_path, 'r', encoding='utf-8') as file:
+                    all_content += file.read()
+
+    # Write all content to the output file
+    with open(output_file, 'w', encoding='utf-8') as outfile:
+        outfile.write(all_content)
+
+    print(f"All Python files have been aggregated into {output_file}")
+
+
+if __name__ == "__main__":
+    # Set the root directory to the current directory
+    root_directory = "."
+
+    # Set the output file name
+    output_filename = "aggregated_python_files.txt"
+
+    # Run the aggregation function
+    aggregate_python_files(root_directory, output_filename)
+
+# File: ./__init__.py
+
+
+
+# File: ./GPT4AllService.py
+
+from gpt4all import GPT4All
+import json
+class GPT4AllWrapper:
+    def __init__(self, model_name):
+        self.model = GPT4All(model_name)
+
+    def generate_text(self, prompt, max_tokens=50):
+        output = self.model.generate(prompt, max_tokens=max_tokens)
+        return output
+
+
+    def generate_exercise(self, age, difficulty, scenario, character):
+        # Generate the prompt for the exercise
+        prompt = f"""
+            You are a friendly math tutor specializing in teaching young children, 
+            specifically {age}-year-olds, the basics of arithmetic in a fun and engaging way. 
+            Your goal is to create a simple and enjoyable arithmetic exercise 
+            that helps a {age}-year-old understand age-appropriate arithmetic. The exercise should involve arithmetic 
+            of two small numbers. for example 'exercise': 'farmer have 2 cows and 2 chickens, how many cows and 
+            chickens the farmer has?' 'answer': 4.
+            write story followed by an exercise framed in an imaginary setting of {scenario} and the main character
+            is {character}. """
+
+        # Generate text using GPT4All
+        response = self.generate_text(prompt, max_tokens=500)
+        return response
+
+        # # Extract the problem and the answer
+        # parsed_content = json.loads(response)
+        # problem = parsed_content.get('problem', '')
+        # answer = parsed_content.get('answer', '')
+        #
+        # print(f"Problem: {problem}")
+        # print(f"Answer: {answer}")
+        #
+        # # Steps for generating the image and audio can be added here as before
+        # # ...
+        #
+        # # Package the exercise components
+        # exercise = {
+        #     "exercise": problem,
+        #     "answer": answer,
+        #     # Add image and audio once generated
+        # }
+        #
+        # return exercise
+
+
+# File: ./ExerciseGenerator.py
+
+
+from service.factories.ContentFactory import ContentFactory
+
+
+class ExerciseGenerator:
+    def __init__(self, content_factory: ContentFactory):
+        self.content_factory = content_factory
+
+    def generate_story(self, scenario, characters, genre):
+        return self.content_factory.generate_story(scenario, characters, genre)
+
+    def generate_exercise(self, age, difficulty, scenario, character):
+        return self.content_factory.generate_exercise(age, difficulty, scenario, character)
+
+    def generate_multiple_choice_question(self, subject, topic, difficulty):
+        return self.content_factory.generate_multiple_choice_question(subject, topic, difficulty)
+
+
+
+
+
+
+# import json
+#
+# from PIL import Image, ImageDraw, ImageFont
+#
+# from models.Completion import ChatMessage
+# from service.ChatGPTService import ChatGPTService
+# class ExerciseGenerator:
+#     def __init__(self):
+#         self.chat_gpt_service = ChatGPTService()
+#
+#     def generate_exercise(self, age, difficulty, scenario, character):
+#         # Step 1: Generate text based on the input scenario and character using ChatGPTService
+#         messages = [
+#             {"role": "system", "content": f"""
+#                you will generate a text problem should have enough details and context for dall-e 3 model to
+#                generate an accurate image for it.
+#                You are a friendly math tutor specializing in teaching young children,
+#                specifically {age}-year-olds, the basics of arithmetic in a fun and engaging way.
+#                Your goal is to create a simple and enjoyable arithmetic exercise
+#                that helps a {age}-year-old understand age appropriate arithmetic.
+#                The exercise should involve arithmetic of two small numbers.
+#                The problem will vary in difficulty
+#                but even the highest difficulty should be appropriate for a {age}-year-old  child.
+#                please set the difficulty to {difficulty}. reply with a json of the problem itself and the answer.
+#
+#                """},
+#             {"role": "user", "content": f"""write an exercise framed in an imaginary {scenario} and the main character
+#             is {character}. """}
+#         ]
+#
+#         response = self.chat_gpt_service.create_chat_completion(model="gpt-3.5-turbo-1106", messages=messages)
+#         print(response)
+#
+#         # Extract the content of the assistant's message
+#         assistant_message = response['choices'][0]['message']['content']
+#
+#         # Parse the content as JSON to access 'problem' and 'answer'
+#         parsed_content = json.loads(assistant_message)
+#         problem = parsed_content.get('problem', '')
+#         answer = parsed_content.get('answer', '')
+#
+#         print(f"Problem: {problem}")
+#         print(f"Answer: {answer}")
+#         print(response['usage'])
+#
+#         # Step 2: Generate an image from the generated text (replace with your image generation logic)
+#         generated_image_url = self.chat_gpt_service.create_image(problem)
+#
+#         # Step 3: Generate audio voice from the generated text using ChatGPTService
+#         generated_audio_data = self.chat_gpt_service.create_speech(problem)
+#
+#         # Package the exercise text, answer, image, and audio
+#         exercise = {
+#             "exercise": problem,
+#             "answer": answer,
+#             "image": generated_image_url,  # Image object
+#             "audio": generated_audio_data,  # Audio data as bytes
+#         }
+#
+#         return exercise
+#
+#     def generate_story(self, scenario, characters, genre):
+#         # Method to generate stories
+#         prompt = f"Write a {genre} story about {scenario} featuring characters {characters}."
+#         story_response = self.chat_gpt_service.generate_text(prompt)
+#         story = story_response.get('text', '')
+#         return story
+#
+#     def generate_multiple_choice_question(self, subject, topic, difficulty):
+#         # Method to generate multiple-choice questions
+#         prompt = f"Create a multiple-choice question on the topic of '{topic}' in the subject '{subject}', suitable for a '{difficulty}' level. Include one correct answer and three plausible distractors."
+#         question_data_response = self.chat_gpt_service.generate_text(prompt)
+#         # Assuming the response contains a 'text' field with JSON data
+#         question_data = json.loads(question_data_response.get('text', '{}'))
+#         return question_data
+#
+    # Additional methods and functionalities can be added as needed
+
+# File: ./ChatGPTService.py
+
+import os
+import time
+
+from openai import OpenAI
+from typing import Dict, List, Any
+
+from openai.types.beta import Thread, ThreadDeleted
+from openai.types.beta.threads import ThreadMessage, Run
+
+
+class ChatGPTService:
+    """
+    A service class for interacting with the OpenAI GPT-3 API to perform various tasks.
+
+    Args:
+        None
+
+    Attributes:
+        client (OpenAI): An instance of the OpenAI client for making API requests.
+
+    Methods:
+        list_models(): List available GPT-3 models.
+        create_chat_completion(model, messages): Create a chat completion using GPT-3.
+        create_speech(text): Generate speech from text using GPT-3.
+        create_image(text, size): Generate an image from text using GPT-3.
+        create_moderation(input): Perform content moderation using GPT-3.
+        create_thread(): Create a new conversation thread.
+        retrieve_thread(thread_id): Retrieve information about a conversation thread.
+        modify_thread(thread_id): Modify a conversation thread.
+        delete_thread(thread_id): Delete a conversation thread.
+        create_message(thread_id, content): Create a new message in a conversation thread.
+        retrieve_message(thread_id, message_id): Retrieve a specific message from a conversation thread.
+        list_messages(thread_id): List all messages in a conversation thread.
+        create_run(thread_id, assistant_id): Create a run within a conversation thread.
+        retrieve_run(thread_id, run_id): Retrieve information about a run within a conversation thread.
+        list_runs(thread_id): List all runs within a conversation thread.
+        cancel_run(thread_id, run_id): Cancel a run within a conversation thread.
+        create_thread_and_run(assistant_id, thread): Create a new thread and run within it.
+
+    """
+
+    def __init__(self):
+        org_id = "org-WZf8EXH15mF8OQPNu5AaUwJp"
+        open_api_key = os.getenv("OPENAI_API_KEY")
+        self.client = OpenAI(api_key=open_api_key, organization=org_id)
+
+    def list_models(self):
+        """
+        List available GPT-3 models.
+
+        Returns:
+            List: A list of available GPT-3 models.
+        """
+        return self.client.models.list()
+
+    def create_chat_completion(self,
+                               messages: List[dict[str, str]],
+                               model: str = "gpt-3.5-turbo-1106") -> dict[str, Any]:
+        """
+        Create a chat completion using GPT-3.
+
+        Args:
+            model (str): The GPT-3 model to use for completion.
+            messages (List[dict[str, str]]): A list of chat messages in the conversation.
+        Returns:
+            dict: The response from the GPT-3 API.
+        """
+        response = self.client.chat.completions.create(
+            model=model,
+            response_format={"type": "json_object"},
+            messages=messages
+        ).model_dump()
+        print(response)
+        return response
+
+    def create_speech(self, text: str) -> bytes:
+        """
+        Generate speech from text using GPT-3.
+
+        Args:
+            text (str): The text content to convert into speech.
+
+        Returns:
+            HttpxBinaryResponseContent: The generated audio data.
+        """
+        response = self.client.audio.speech.create(
+            model="tts-1",
+            voice="onyx",  # alloy, echo, fable, onyx, nova, and shimmer
+            response_format='mp3',
+            input=text
+        )
+        return response.content
+
+    def create_image(self, text: str) -> str:
+        """
+        Generate an image from the given text using GPT-3.
+
+        Args:
+            text (str): The text content to use for generating the image.
+
+        Returns:
+            str: The generated image data.
+        """
+        text += " Make an image with No text or writing for the given scenario."
+        response = self.client.images.generate(
+            model="dall-e-3",
+            prompt=text,
+            n=1,
+            size="1024x1024",
+            style="natural"
+        )
+        # Access the URL from the first item in the 'data' list
+        generated_image_url = response.data[0].url
+        return generated_image_url
+
+    def create_moderation(self, text: str) -> str:
+        """
+        Perform content moderation using GPT-3.
+
+        Args:
+            text (str): The content to be moderated.
+
+        Returns:
+            str: The moderated content.
+        """
+        response = self.client.moderations.create(input=text)
+        return response["results"]
+
+    def create_thread(self) -> Thread:
+        """
+        Create a new conversation thread.
+
+        Returns:
+            Thread: The created conversation thread.
+        """
+        return self.client.beta.threads.create()
+
+    def retrieve_thread(self, thread_id: str) -> Thread:
+        """
+        Retrieve information about a conversation thread.
+
+        Args:
+            thread_id (str): The ID of the conversation thread to retrieve.
+
+        Returns:
+            Thread: Information about the conversation thread.
+        """
+        return self.client.beta.threads.retrieve(thread_id)
+
+    def modify_thread(self, thread_id: str) -> Thread:
+        """
+        Modify a conversation thread.
+
+        Args:
+            thread_id (str): The ID of the conversation thread to modify.
+
+        Returns:
+            Thread: The modified conversation thread.
+        """
+        return self.client.beta.threads.update(thread_id)
+
+    def delete_thread(self, thread_id: str) -> ThreadDeleted:
+        """
+        Delete a conversation thread.
+
+        Args:
+            thread_id (str): The ID of the conversation thread to delete.
+
+        Returns:
+            ThreadDeleted: Information about the deleted conversation thread.
+        """
+        return self.client.beta.threads.delete(thread_id)
+
+    def create_message(self, thread_id: str, content: str) -> ThreadMessage:
+        """
+        Create a new message in a conversation thread.
+
+        Args:
+            thread_id (str): The ID of the conversation thread.
+            content (str): The content of the message.
+
+        Returns:
+            ThreadMessage: The created message.
+        """
+        return self.client.beta.threads.messages.create(thread_id, role="user", content=content)
+
+    def retrieve_message(self, thread_id: str, message_id: str) -> ThreadMessage:
+        """
+        Retrieve a specific message from a conversation thread.
+
+        Args:
+            thread_id (str): The ID of the conversation thread.
+            message_id (str): The ID of the message to retrieve.
+
+        Returns:
+            ThreadMessage: The retrieved message.
+        """
+        return self.client.beta.threads.messages.retrieve(thread_id=thread_id, message_id=message_id)
+
+    def list_messages(self, thread_id: str) -> [ThreadMessage]:
+        """
+        List all messages in a conversation thread.
+
+        Args:
+            thread_id (str): The ID of the conversation thread.
+
+        Returns:
+            List[ThreadMessage]: A list of messages in the conversation thread.
+        """
+        return self.client.beta.threads.messages.list(thread_id=thread_id)
+
+    def create_run(self, thread_id: str, assistant_id: str) -> Run:
+        """
+        Create a run within a conversation thread.
+
+        Args:
+            thread_id (str): The ID of the conversation thread.
+            assistant_id (str): The ID of the assistant for the run.
+
+        Returns:
+            Run: The created run.
+        """
+        return self.client.beta.threads.runs.create(thread_id=thread_id, assistant_id=assistant_id)
+
+    def wait_for_run_completion(self, thread_id: str, run_id: str):
+        """
+        Wait for a run within a conversation thread to complete or handle other possible statuses.
+
+        Args:
+            thread_id (str): The ID of the conversation thread.
+            run_id (str): The ID of the run to wait for.
+
+        Returns:
+            str: The result of the run when it completes successfully, or an appropriate message for other statuses.
+        """
+        while True:
+            run = self.retrieve_run(thread_id, run_id)
+            status = run.status
+            if status == "completed":
+                # Run has successfully completed, return the result
+                return run.messages[-1].content if run.messages else "No response from the run."
+            elif status == "failed":
+                # Handle the case where the run has failed
+                return "Run failed. Check run details for more information."
+            elif status == "cancelling":
+                # Handle the case where the run is being cancelled
+                return "Run is currently being cancelled."
+            elif status == "cancelled":
+                # Handle the case where the run has been cancelled
+                return "Run has been cancelled."
+            elif status == "requires_action":
+                # Handle the case where the run requires action
+                return "Run requires action. Check run details for more information."
+            elif status == "in_progress":
+                # Handle the case where the run is still in progress
+                time.sleep(5)  # Wait for 5 seconds before checking again
+            elif status == "expired":
+                # Handle the case where the run has expired
+                return "Run has expired. Check run details for more information."
+            else:
+                # Handle any other unknown status
+                return f"Unknown run status: {status}"
+
+    def retrieve_run(self, thread_id: str, run_id: str) -> Run:
+        """
+        Retrieve information about a run within a conversation thread.
+
+        Args:
+            thread_id (str): The ID of the conversation thread.
+            run_id (str): The ID of the run to retrieve.
+
+        Returns:
+            Run: Information about the run.
+        """
+        return self.client.beta.threads.runs.retrieve(thread_id=thread_id, run_id=run_id)
+
+    def list_runs(self, thread_id: str) -> [Run]:
+        """
+        List all runs within a conversation thread.
+
+        Args:
+            thread_id (str): The ID of the conversation thread.
+
+        Returns:
+            List[Run]: A list of runs in the conversation thread.
+        """
+        return self.client.beta.threads.runs.list(thread_id=thread_id)
+
+    def cancel_run(self, thread_id: str, run_id: str) -> Run:
+        """
+        Cancel a run within a conversation thread.
+
+        Args:
+            thread_id (str): The ID of the conversation thread.
+            run_id (str): The ID of the run to cancel.
+
+        Returns:
+            Run: Information about the canceled run.
+        """
+        return self.client.beta.threads.runs.cancel(thread_id=thread_id, run_id=run_id)
+
+    def create_thread_and_run(self, assistant_id: str, thread: Dict = None) -> Run:
+        """
+        Create a new thread and run within it.
+
+        Args:
+            assistant_id (str): The ID of the assistant for the run.
+            thread (Dict, optional): Additional thread data.
+
+        Returns:
+            Run: The created run within the new thread.
+        """
+        return self.client.beta.threads.create_and_run(assistant_id=assistant_id, thread=thread)
+
+
+# File: ./story_generator/__init__.py
+
+
+
+# File: ./story_generator/story_generator.py
+
+import os
+from typing import Optional, List
+
+class StoryGenerator:
+    """
+    Main class for generating the interactive, never-ending story.
+    """
+
+    def __init__(self, llm_adapter):
+        self.llm_adapter = llm_adapter
+        self.story = ""
+        self.character = None
+        self.setting = None
+        self.choices = []
+        self.is_running = True
+
+    def start_story(self):
+        """
+        Starts the story by introducing the adventure and prompting for character and setting selection.
+        """
+        self.greet_user()
+        self.select_character()
+        self.select_setting()
+        self.continue_story()
+
+    def greet_user(self):
+        """
+        Sends a greeting to the user.
+        """
+        greeting = "Hello, dear friend! 🌟 I'm so excited to embark on a magical, never-ending adventure with you! In this special journey, you have the power to decide everything that happens. You can make any choices you wish, and together we'll create a story that's uniquely yours!"
+        print(greeting)
+        self.story += greeting + "\n\n"
+
+    def select_character(self):
+        """
+        Presents character options and sets the chosen character.
+        """
+        character_prompt = self.get_character_prompt()
+        print(character_prompt)
+        self.story += character_prompt + "\n\n"
+        while not self.character:
+            user_input = input("Please tell me the name or number of your chosen character: ").strip()
+            self.character = self.process_character_choice(user_input)
+            if not self.character:
+                print("Invalid choice. Please try again.")
+
+    def get_character_prompt(self) -> str:
+        """
+        Generates a prompt with character options.
+        """
+        characters = self.load_characters()
+        prompt = "### Character Selection\n\nFirst, let's choose the hero of our story. You can pick from our wonderful list of characters, or you can imagine and create your very own! Here are some friends who are eager to join you:\n"
+        for idx, char in enumerate(characters, 1):
+            prompt += f"{idx}. **{char['name']}** {char['emoji']} - {char['description']}\n"
+        prompt += "\nWho would you like the hero of your adventure to be? You can choose from our list or create your own character!\n"
+        return prompt
+
+    def load_characters(self) -> List[dict]:
+        """
+        Loads a list of character options.
+        """
+        return [
+            {"name": "Lily the Ladybug", "emoji": "🐞", "description": "A cheerful ladybug who loves exploring magical gardens."},
+            {"name": "Max the Monkey", "emoji": "🐵", "description": "A playful monkey who enjoys swinging through treetops."},
+            {"name": "Ellie the Elephant", "emoji": "🐘", "description": "A gentle elephant who is always ready to help her friends."},
+            {"name": "Sparkle the Unicorn", "emoji": "🦄", "description": "A magical unicorn with a shimmering rainbow mane."},
+            {"name": "Benny the Bunny", "emoji": "🐰", "description": "A swift rabbit who loves to race through meadows."},
+            {"name": "Create Your Own Character", "emoji": "", "description": "Imagine anyone you like!"}
+        ]
+
+    def process_character_choice(self, choice: str) -> Optional[str]:
+        """
+        Processes the user's character choice.
+
+        :param choice: The user's input.
+        :return: The chosen character or None if invalid.
+        """
+        characters = self.load_characters()
+        if choice.isdigit():
+            index = int(choice) - 1
+            if 0 <= index < len(characters):
+                character = characters[index]
+                if character["name"] == "Create Your Own Character":
+                    return self.create_custom_character()
+                else:
+                    confirmation = f"You've chosen **{character['name']}** {character['emoji']} - {character['description']}"
+                    print(confirmation)
+                    self.story += confirmation + "\n\n"
+                    return character["name"]
+        else:
+            # Check if the choice matches a character name
+            for character in characters:
+                if choice.lower() == character["name"].lower():
+                    if character["name"] == "Create Your Own Character":
+                        return self.create_custom_character()
+                    else:
+                        confirmation = f"You've chosen **{character['name']}** {character['emoji']} - {character['description']}"
+                        print(confirmation)
+                        self.story += confirmation + "\n\n"
+                        return character["name"]
+        return None
+
+    def create_custom_character(self) -> str:
+        """
+        Allows the user to create a custom character.
+
+        :return: The custom character's name.
+        """
+        name = input("Enter the name of your character: ").strip()
+        description = input("Describe your character: ").strip()
+        confirmation = f"You've created **{name}** - {description}"
+        print(confirmation)
+        self.story += confirmation + "\n\n"
+        return name
+
+    def select_setting(self):
+        """
+        Presents setting options and sets the chosen setting.
+        """
+        setting_prompt = self.get_setting_prompt()
+        print(setting_prompt)
+        self.story += setting_prompt + "\n\n"
+        while not self.setting:
+            user_input = input("Please tell me the name or number of your chosen setting: ").strip()
+            self.setting = self.process_setting_choice(user_input)
+            if not self.setting:
+                print("Invalid choice. Please try again.")
+
+    def get_setting_prompt(self) -> str:
+        """
+        Generates a prompt with setting options.
+        """
+        settings = self.load_settings()
+        prompt = "### Setting Selection\n\nNow, let's choose where your adventure will take place! You can select from our list of enchanting places, or imagine your own magical setting. Here are some wondrous options:\n"
+        for idx, setting in enumerate(settings, 1):
+            prompt += f"{idx}. **{setting['name']}** {setting['emoji']} - {setting['description']}\n"
+        prompt += "\nWhere would you like your adventure to begin? You can choose from our magical places above or imagine your own!\n"
+        return prompt
+
+    def load_settings(self) -> List[dict]:
+        """
+        Loads a list of setting options.
+        """
+        return [
+            {"name": "Enchanted Forest", "emoji": "🌳", "description": "A mystical forest where trees whisper secrets and fairies flutter about."},
+            {"name": "Rainbow Island", "emoji": "🌈", "description": "An island where rainbows touch the ground and treasures are hidden at every turn."},
+            {"name": "Magic Meadow", "emoji": "🌼", "description": "A meadow where flowers sing, and butterflies tell stories."},
+            {"name": "Your Imagined Place", "emoji": "🏝️", "description": "Let your imagination decide! You can create any magical place you wish."}
+        ]
+
+    def process_setting_choice(self, choice: str) -> Optional[str]:
+        """
+        Processes the user's setting choice.
+
+        :param choice: The user's input.
+        :return: The chosen setting or None if invalid.
+        """
+        settings = self.load_settings()
+        if choice.isdigit():
+            index = int(choice) - 1
+            if 0 <= index < len(settings):
+                setting = settings[index]
+                if setting["name"] == "Your Imagined Place":
+                    return self.create_custom_setting()
+                else:
+                    confirmation = f"You've selected **{setting['name']}** {setting['emoji']} - {setting['description']}"
+                    print(confirmation)
+                    self.story += confirmation + "\n\n"
+                    return setting["name"]
+        else:
+            # Check if the choice matches a setting name
+            for setting in settings:
+                if choice.lower() == setting["name"].lower():
+                    if setting["name"] == "Your Imagined Place":
+                        return self.create_custom_setting()
+                    else:
+                        confirmation = f"You've selected **{setting['name']}** {setting['emoji']} - {setting['description']}"
+                        print(confirmation)
+                        self.story += confirmation + "\n\n"
+                        return setting["name"]
+        return None
+
+    def create_custom_setting(self) -> str:
+        """
+        Allows the user to create a custom setting.
+
+        :return: The custom setting's name.
+        """
+        name = input("Enter the name of your magical place: ").strip()
+        description = input("Describe your magical place: ").strip()
+        confirmation = f"You've created **{name}** - {description}"
+        print(confirmation)
+        self.story += confirmation + "\n\n"
+        return name
+
+    def continue_story(self):
+        """
+        Continues the story indefinitely, accepting user inputs to influence the narrative.
+        """
+        while self.is_running:
+            prompt = self.generate_story_prompt()
+            response = self.llm_adapter.generate_response(prompt)
+            self.present_response(response)
+            user_input = input("What would you like to do next? (Type 'exit' to end the story): ").strip()
+            if user_input.lower() == 'exit':
+                self.is_running = False
+                self.end_story()
+            else:
+                self.choices.append(user_input)
+                self.story += f"**Your Choice:** {user_input}\n\n"
+
+    def generate_story_prompt(self) -> str:
+        """
+        Generates a prompt to send to the LLM based on the current state of the story.
+
+        :return: The prompt string.
+        """
+        prompt = f"The following is a continuation of a children's story for ages 4 to 6. The story is interactive and never-ending, incorporating the user's choices into the narrative.\n\n"
+        prompt += f"Story so far:\n{self.story}\n"
+        prompt += f"The main character is {self.character}.\n"
+        prompt += f"The setting is {self.setting}.\n"
+        if self.choices:
+            prompt += f"Recent choice by user: {self.choices[-1]}\n"
+        prompt += "Continue the story in a fun, imaginative way, appropriate for children aged 4 to 6. Include descriptions for images or sounds if relevant. End with a prompt encouraging the user to make another choice.\n"
+        return prompt
+
+    def present_response(self, response: str):
+        """
+        Presents the story generated by the LLM.
+
+        :param response: The LLM's response.
+        """
+        print(response)
+        self.story += response + "\n\n"
+
+    def end_story(self):
+        """
+        Ends the story with a positive conclusion.
+        """
+        conclusion = f"And so, {self.character}'s adventure in the {self.setting} came to a happy pause, with many more adventures waiting just around the corner! Thank you for sharing this magical journey!"
+        print(conclusion)
+        self.story += conclusion + "\n"
+
+# File: ./story_generator/llm_adapter.py
+
+class LLMAdapter:
+    """
+    Base class for LLM Adapters.
+    This class should be extended to implement communication with a specific LLM.
+    """
+
+    def generate_response(self, prompt: str) -> str:
+        """
+        Generates a response from the LLM based on the given prompt.
+        This method should be overridden by subclasses.
+
+        :param prompt: The prompt to send to the LLM.
+        :return: The response from the LLM.
+        """
+        raise NotImplementedError("LLMAdapter subclasses must implement the generate_response method.")
+
+# File: ./factories/__init__.py
+
+
+
+# File: ./factories/ContentFactory.py
+
+from abc import ABC, abstractmethod
+
+class ContentFactory(ABC):
+    @abstractmethod
+    def generate_story(self, scenario, characters, genre):
+        pass
+
+    @abstractmethod
+    def generate_exercise(self, age, difficulty, scenario, character):
+        pass
+
+    @abstractmethod
+    def generate_multiple_choice_question(self, subject, topic, difficulty):
+        pass
+
+
+# File: ./factories/ChatGPTServiceFactory.py
+
+from service.factories.ContentFactory import ContentFactory
+
+
+class ChatGPTServiceFactory(ContentFactory):
+    """
+     Factory class for generating educational content using ChatGPTServiceFactoryservice.
+
+     This class provides methods to generate stories, exercises, and multiple-choice questions
+     tailored to specific age groups, difficulty levels, scenarios, and characters.
+
+     Attributes:
+         ChatGPT_Service_Factory: An instance of the ChatGPTServiceFactoryservice class
+                                       used for content generation.
+     """
+
+    def __init__(self, chatgpt_service):
+        """
+              Initializes the chatgpt_service with a chatgpt_service service instance.
+
+              Args:
+                  chatgpt_service: An instance of a chatgpt_service service class.
+              """
+        self.chatgpt_service = chatgpt_service
+
+    def generate_story(self, scenario, characters, genre):
+        """
+        Generates a story based on the provided scenario, characters, and genre.
+
+        Args:
+            scenario (str): The scenario or setting for the story.
+            characters (str): The characters involved in the story.
+            genre (str): The genre of the story.
+
+        Returns:
+            str: The generated story.
+        """
+        user_message = f"Generate a story based on the scenario: {scenario}, characters: {characters}, and genre: {genre}"
+        thread = self.chatgpt_service.create_thread()
+        self.chatgpt_service.create_message(thread_id=thread['id'], content=user_message)
+        run = self.chatgpt_service.create_run(thread_id=thread['id'])
+        self.chatgpt_service.wait_for_run_completion(thread_id=thread['id'], run_id=run['id'])
+        messages = self.chatgpt_service.list_messages(thread_id=thread['id'])
+        assistant_response = next((m['content'] for m in messages if m['role'] == 'assistant'), None)
+        return assistant_response
+
+    def generate_exercise(self, age, difficulty, scenario, character):
+        """
+        Generates a text-based exercise based on age, difficulty level, scenario, and character.
+
+        Args:
+            age (int): The targeted age group for the exercise.
+            difficulty (str): The difficulty level of the exercise.
+            scenario (str): The scenario or context for the exercise.
+            character (str): The character involved in the exercise.
+
+        Returns:
+            str: The generated exercise.
+        """
+        exercise_prompt = f"Create an exercise for age {age}, difficulty {difficulty}, based on the scenario {scenario} and character {character}."
+        thread = self.chatgpt_service.create_thread()
+        self.chatgpt_service.create_message(thread_id=thread['id'], content=exercise_prompt)
+        run = self.chatgpt_service.create_run(thread_id=thread['id'])
+        self.chatgpt_service.wait_for_run_completion(thread_id=thread['id'], run_id=run['id'])
+        messages = self.chatgpt_service.list_messages(thread_id=thread['id'])
+        exercise = next((m['content'] for m in messages if m['role'] == 'assistant'), None)
+        return exercise
+
+    def generate_multiple_choice_question(self, subject, topic, difficulty):
+        """
+        Generates a multiple-choice question based on a given subject, topic, and difficulty level.
+
+        Args:
+            subject (str): The subject area of the question.
+            topic (str): The specific topic within the subject area.
+            difficulty (str): The difficulty level of the question.
+
+        Returns:
+            str: The generated multiple-choice question.
+        """
+        question_prompt = f"Create a multiple-choice question about {topic} in {subject} at {difficulty} level."
+        thread = self.chatgpt_service.create_thread()
+        self.chatgpt_service.create_message(thread_id=thread['id'], content=question_prompt)
+        run = self.chatgpt_service.create_run(thread_id=thread['id'])
+        self.chatgpt_service.wait_for_run_completion(thread_id=thread['id'], run_id=run['id'])
+        messages = self.chatgpt_service.list_messages(thread_id=thread['id'])
+        question = next((m['content'] for m in messages if m['role'] == 'assistant'), None)
+        return question
+
+
+# File: ./factories/GoogleGenerativeAIServiceFactory.py
+
+import demjson3
+import logging
+import re
+from service.factories.ContentFactory import ContentFactory
+
+
+class GoogleGenerativeAIServiceFactory(ContentFactory):
+    """
+     Factory class for generating educational content using Google Generative AI service.
+
+     This class provides methods to generate stories, exercises, and multiple-choice questions
+     tailored to specific age groups, difficulty levels, scenarios, and characters.
+
+     Attributes:
+         google_generative_ai_service: An instance of the Google Generative AI service class
+                                       used for content generation.
+     """
+
+    def __init__(self, google_generative_ai_service):
+        """
+              Initializes the GoogleGenerativeAIServiceFactory with a Google Generative AI service instance.
+
+              Args:
+                  google_generative_ai_service: An instance of a Google Generative AI service class.
+              """
+        self.google_generative_ai_service = google_generative_ai_service
+
+    def generate_story(self, scenario, characters, genre):
+        """
+              Generates a story based on the specified scenario, characters, and genre.
+
+              Args:
+                  scenario (str): The setting or situation for the story.
+                  characters (str): The characters involved in the story.
+                  genre (str): The genre of the story.
+
+              Returns:
+                  str: The generated story text.
+              """
+        # Implementation using GoogleGenerativeAIService
+        pass
+
+    def generate_exercise(self, age, difficulty, scenario, character):
+        """
+               Generates an educational exercise suitable for the specified age group,
+               with a given difficulty level, scenario, and character.
+
+               The exercise integrates arithmetic problems in an engaging and immersive narrative.
+
+               Args:
+                   age (int): The target age group for the exercise.
+                   difficulty (str): The difficulty level of the exercise.
+                   scenario (str): The setting or theme of the exercise.
+                   character (str): The character involved in the exercise.
+
+               Returns:
+                   dict: A dictionary containing the exercise text and its answer.
+               """
+        prompt = GoogleGenerativeAIServiceFactory._create_expanded_age_prompt(age, difficulty, scenario, character)
+
+        # Log the constructed prompt
+        logging.info("Constructed Prompt: %s", prompt)
+
+        exercise_text = self.google_generative_ai_service.generate_text(prompt)
+
+        # Log the response
+        logging.info("Generated Exercise Text: %s", exercise_text)
+
+        # Process the response to extract exercise and answer
+        return GoogleGenerativeAIServiceFactory._extract_exercise_and_answer_using_regex(exercise_text)
+
+    def generate_multiple_choice_question(self, subject, topic, difficulty):
+        """
+                Generates a multiple-choice question based on the given subject, topic, and difficulty level.
+
+                Args:
+                    subject (str): The subject area of the question.
+                    topic (str): The specific topic within the subject area.
+                    difficulty (str): The difficulty level of the question.
+
+                Returns:
+                    str: The generated multiple-choice question.
+                """
+        # Implementation using GoogleGenerativeAIService
+        pass
+
+    @staticmethod
+    def _extract_exercise_and_answer_using_regex(response):
+        """
+              Extracts the exercise and its answer from the given content using regular expressions.
+
+              Args:
+                  response (str): The content containing the exercise and answer.
+
+              Returns:
+                  dict: A dictionary with keys 'exercise' and 'answer', containing the extracted texts.
+              """
+        # Case 1: If response is a JSON string, parse it into a dictionary
+        if isinstance(response, str):
+            try:
+                # Try to directly parse the JSON string
+                response_dict = demjson3.decode(response)
+            except demjson3.JSONDecodeError:
+                # If direct parsing fails, try removing extra characters
+                cleaned_response = response.replace("```json", "").replace("```", "").strip()
+                try:
+                    response_dict = demjson3.decode(cleaned_response)
+                except demjson3.JSONDecodeError:
+                    return {"error": "JSON decode error"}
+
+        # Case 2: If response is already a dictionary
+        elif isinstance(response, dict):
+            response_dict = response
+        else:
+            return {"error": "Invalid response type"}
+
+        # Extract exercise and answer from the dictionary
+        return {
+            "exercise": response_dict.get("exercise", "Exercise not found"),
+            "answer": response_dict.get("answer", "Answer not found")
+        }
+
+    @staticmethod
+    def _create_expanded_age_prompt(age, difficulty, scenario, character):
+        # Descriptors and content focus for different age groups
+        """
+               Creates a detailed and immersive prompt for generating educational content,
+               considering the age, difficulty, scenario, and character.
+
+               Args:
+                   age (int): The target age group for the content.
+                   difficulty (str): The difficulty level of the content.
+                   scenario (str): The setting or theme of the content.
+                   character (str): The character involved in the content.
+
+               Returns:
+                   str: The constructed prompt for content generation.
+               """
+        age_focus = {
+            "1-2": ("colorful and exploratory", "basic shapes, colors, and counting"),
+            "3-4": ("fun and playful", "simple counting and easy puzzles"),
+            "5-6": ("exciting and adventurous", "simple arithmetic like 1+1 and basic word problems"),
+            "7-8": ("creative and imaginative", "addition, subtraction, and simple word problems"),
+            "9-10": ("mysterious and challenging", "multiplication, division, and more complex word problems"),
+            "11-12": ("intriguing and thought-provoking", "advanced arithmetic, fractions, and problem-solving"),
+            "13-18": ("daring and complex", "algebra, geometry, and critical thinking challenges"),
+            "19-30": ("sophisticated and abstract", "higher mathematics, statistics, and real-world applications"),
+            "31-60": ("practical and relevant", "everyday math, finance, and logic puzzles"),
+            "61-90": ("reflective and engaging", "mental exercises, historical math problems, and logic"),
+            "91-120": ("wise and timeless", "age-old puzzles, mathematical riddles, and philosophical questions")
+        }
+
+        # Determine age group
+        age_group = next((k for k in age_focus if int(age) in range(int(k.split('-')[0]), int(k.split('-')[1]) + 1)),
+                         "91-120")
+
+        age_descriptor, focus = age_focus[age_group]
+
+        # Crafting a detailed and immersive prompt
+        prompt = f"""
+                Create a vivid highly detailed story based on this scenario:
+                In a {age_descriptor} world of '{scenario}', '{character}' discovers a series 
+                of challenges. These tasks involve {focus} and are perfectly suited for someone aged {age}. 
+                With a '{difficulty}' level of complexity. {character} navigates these puzzles by 
+                applying your knowledge and skills to explore the depths of '{scenario}'. 
+                Generate a detailed exercise based on the story in which the {character} has to solve in order to
+                advance in the adventure.
+                Your response must contain an exercise question followed by 
+                an answer that is only numerical or one word.
+                Respond with a json formatted {{\"exercise\": exercise, \"answer\": answer}}
+            """
+
+        return prompt
