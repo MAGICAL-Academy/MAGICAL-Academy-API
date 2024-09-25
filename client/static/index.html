@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Interactive Story</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        #story {
+            width: 60%;
+            margin: auto;
+            padding: 20px;
+            border: 1px solid #ccc;
+            overflow-y: auto;
+            height: 400px;
+        }
+        #choices {
+            width: 60%;
+            margin: auto;
+            padding: 20px;
+        }
+        .choice-button {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin-top: 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #start-button {
+            display: block;
+            width: 200px;
+            margin: 20px auto;
+            padding: 10px;
+            font-size: 18px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <h1 style="text-align: center;">Interactive Story</h1>
+    <div id="story">
+        <!-- Story content will appear here -->
+    </div>
+    <div id="choices">
+        <!-- Choice buttons will appear here -->
+    </div>
+    <button id="start-button">Start Story</button>
+
+    <!-- Include Socket.IO client library -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js" integrity="sha384-W6FYQW+F4tPZCrL0o6Qnq+Y3uV0iKUIskbltV6EJ2avBIQePhOKtRAPu8E5rM7mP" crossorigin="anonymous"></script>
+
+    <!-- Include client-side JavaScript -->
+    <script src="/static/js/client.js"></script>
+</body>
+</html>
