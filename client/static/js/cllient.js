@@ -16,41 +16,14 @@ startButton.addEventListener('click', () => {
     socket.emit('start_story', {});
 });
 
-// Handle initial choices
-socket.on('initial_choices', (data) => {
+// Handle LLM questions
+socket.on('llm_question', (data) => {
     storyId = data.story_id;
     currentNodeId = data.current_node_id;
-    const choiceType = data.choice_type;
-    const choices = data.choices;
+    const question = data.question;
 
-    displayMessage(`Choose a ${choiceType}:`);
-    displayChoices(choices);
-});
-
-// Handle story updates (streamed content)
-socket.on('story_update', (data) => {
-    const content = data.content;
-    appendToStory(content);
-});
-
-// Handle next choices
-socket.on('next_choices', (data) => {
-    currentNodeId = data.current_node_id;
-    const choiceType = data.next_choice_type;
-    const choices = data.choices;
-
-    displayMessage(`Choose a ${choiceType}:`);
-    displayChoices(choices);
-});
-
-// Handle final story
-socket.on('final_story', (data) => {
-    const content = data.content;
-    appendToStory('\n\nThe End.\n\n');
-    appendToStory(content);
-    displayMessage('Story Completed!');
-    startButton.disabled = false;
-    startButton.textContent = 'Start New Story';
+    appendToStory(`\nLLM: ${question}\n`);
+    displayInputField();
 });
 
 // Handle errors
@@ -71,16 +44,39 @@ function displayMessage(message) {
     choicesDiv.appendChild(messageDiv);
 }
 
-function displayChoices(choices) {
-    choices.forEach(choice => {
-        const button = document.createElement('button');
-        button.className = 'choice-button';
-        button.textContent = choice;
-        button.addEventListener('click', () => {
-            makeChoice(choice);
-        });
-        choicesDiv.appendChild(button);
+function displayInputField() {
+    choicesDiv.innerHTML = '';
+    const inputField = document.createElement('input');
+    inputField.type = 'text';
+    inputField.id = 'user-input';
+    inputField.placeholder = 'Your response...';
+    inputField.style.width = '80%';
+    inputField.style.padding = '10px';
+    inputField.style.fontSize = '16px';
+
+    const sendButton = document.createElement('button');
+    sendButton.textContent = 'Send';
+    sendButton.style.padding = '10px';
+    sendButton.style.fontSize = '16px';
+    sendButton.style.marginLeft = '10px';
+
+    sendButton.addEventListener('click', () => {
+        const userInput = inputField.value.trim();
+        if (userInput !== '') {
+            sendUserResponse(userInput);
+            inputField.value = '';
+        }
     });
+
+    inputField.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') {
+            sendButton.click();
+        }
+    });
+
+    choicesDiv.appendChild(inputField);
+    choicesDiv.appendChild(sendButton);
+    inputField.focus();
 }
 
 function appendToStory(text) {
@@ -88,16 +84,12 @@ function appendToStory(text) {
     storyDiv.scrollTop = storyDiv.scrollHeight; // Scroll to bottom
 }
 
-function makeChoice(choice) {
-    choicesDiv.innerHTML = '';
-    socket.emit('make_choice', {
+function sendUserResponse(userInput) {
+    appendToStory(`\nYou: ${userInput}\n`);
+    choicesDiv.innerHTML = ''; // Clear input field
+    socket.emit('user_response', {
         story_id: storyId,
-        user_choice: choice,
+        user_input: userInput,
         current_node_id: currentNodeId
     });
 }
-
-// Optional: Request the final story (if applicable)
-// function requestFinalStory() {
-//     socket.emit('get_final_story', { story_id: storyId });
-// }

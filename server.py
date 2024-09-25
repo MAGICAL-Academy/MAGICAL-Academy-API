@@ -3,11 +3,6 @@ import uuid
 import asyncio
 import socketio
 from aiohttp import web
-from aiohttp import WSMsgType
-from aiohttp.web import middleware
-from aiohttp.web_request import Request
-from aiohttp.web_response import Response
-from aiohttp.web_runner import AppRunner, TCPSite
 from dotenv import load_dotenv
 from service.story_generator.llm_adapter import LLMAdapter
 from repository.graph_db import GraphDB  # Ensure this is implemented
@@ -21,7 +16,7 @@ app = web.Application()
 sio.attach(app)
 
 # Serve static files
-static_dir = os.path.join(os.path.dirname(__file__), 'static')
+static_dir = os.path.join(os.path.dirname(__file__), 'client/static')
 app.router.add_static('/static/', path=os.path.join(static_dir))
 app.router.add_get('/', lambda request: web.FileResponse(os.path.join(static_dir, 'index.html')))
 
@@ -47,82 +42,59 @@ async def start_story(sid, data):
     story_id = str(uuid.uuid4())
     db.create_story(story_id)
 
-    # Starting prompt to explain the story and the process
-    starting_prompt = (
-        "We are about to embark on an interactive story. "
-        "At each step, you will make choices that shape the story. "
-        "Let's begin!"
-    )
+    # Get the initial prompt from the LLM
+    try:
+        initial_prompt = await llm.get_initial_prompt()
+    except Exception as e:
+        await sio.emit('error', {'message': str(e)}, room=sid)
+        return
 
-    # Generate initial choice type and options
-    choice_type, choices = llm.generate_initial_choice_and_options(starting_prompt)
+    # Store initial prompt in the context
+    initial_node_id = db.create_node(story_id, f"LLM: {initial_prompt}", is_choice_point=False)
 
-    # Send initial choices to client
-    await sio.emit('initial_choices', {
+    # Send the initial prompt to the client
+    await sio.emit('llm_question', {
         'story_id': story_id,
-        'choice_type': choice_type,
-        'choices': choices,
-        'current_node_id': 0  # Assuming 0 is the root node
+        'current_node_id': initial_node_id,
+        'question': initial_prompt
     }, room=sid)
 
 @sio.event
-async def make_choice(sid, data):
+async def user_response(sid, data):
     story_id = data.get('story_id')
-    user_choice = data.get('user_choice')
+    user_input = data.get('user_input')
     current_node_id = data.get('current_node_id')
 
-    if not all([story_id, user_choice, current_node_id is not None]):
+    if not all([story_id, user_input, current_node_id is not None]):
         await sio.emit('error', {'message': 'Invalid data received.'}, room=sid)
         return
 
     # Retrieve the current story context from the database
     context = db.get_story_context(story_id)
 
-    # Store the user's choice in the database
-    next_content = f"User chose: {user_choice}"
-    next_node_id = db.create_node(story_id, next_content, is_choice_point=True)
-    db.create_edge(current_node_id, next_node_id, user_choice)
+    # Store the user's input in the database
+    user_node_content = f"User: {user_input}"
+    user_node_id = db.create_node(story_id, user_node_content, is_choice_point=True)
+    db.create_edge(current_node_id, user_node_id, "User Input")
 
-    # Generate the next part of the story and stream it to the client
-    prompt = f"{context}\nUser chose '{user_choice}'. Continue the story in second person."
+    # Generate the next LLM response based on the context and user input
     try:
-        async for chunk in llm.stream_generate(prompt):
-            await sio.emit('story_update', {'content': chunk}, room=sid)
+        llm_response = await llm.generate_llm_response(context, user_input)
     except Exception as e:
         await sio.emit('error', {'message': str(e)}, room=sid)
         return
 
-    # After streaming the story, generate the next set of choices
-    choice_prompt = f"{context}\nUser chose '{user_choice}'. What should the user decide next? Provide 5 options."
-    try:
-        next_choice_type, next_choices = llm.generate_initial_choice_and_options(choice_prompt)
-    except Exception as e:
-        await sio.emit('error', {'message': str(e)}, room=sid)
-        return
+    # Store the LLM's response in the database
+    llm_node_content = f"LLM: {llm_response}"
+    llm_node_id = db.create_node(story_id, llm_node_content, is_choice_point=False)
+    db.create_edge(user_node_id, llm_node_id, "LLM Response")
 
-    # Send the next choices to the client
-    await sio.emit('next_choices', {
-        'next_choice_type': next_choice_type,
-        'choices': next_choices,
-        'current_node_id': next_node_id
+    # Send the LLM's response (question or story continuation) to the client
+    await sio.emit('llm_question', {
+        'story_id': story_id,
+        'current_node_id': llm_node_id,
+        'question': llm_response
     }, room=sid)
-
-@sio.event
-async def get_final_story(sid, data):
-    story_id = data.get('story_id')
-
-    if not story_id:
-        await sio.emit('error', {'message': 'Invalid data received.'}, room=sid)
-        return
-
-    # Get the entire story context
-    context = db.get_story_context(story_id)
-
-    # Generate the final story
-    final_story = llm.generate_final_story(context)
-
-    # Send the final story to the client
-    await sio.emit('final_story', {'content': final_story}, room=sid)
 
 # Run the Socket.IO server
 if __name__ == '__main__':

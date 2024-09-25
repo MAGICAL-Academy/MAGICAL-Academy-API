@@ -1,68 +1,63 @@
 import os
-import openai
+from mistralai import Mistral, UserMessage
 from dotenv import load_dotenv
+import asyncio
 
 class LLMAdapter:
     def __init__(self):
         # Load environment variables
         load_dotenv()
-        self.api_key = os.getenv("OPENAI_API_KEY")
-        openai.api_key = self.api_key
-        self.model = os.getenv("OPENAI_MODEL", "gpt-3.5-turbo")
+        self.api_key = os.getenv("MISTRAL_API_KEY")
+        self.client = Mistral(api_key=self.api_key)
+        self.model = os.getenv("MISTRAL_MODEL", "mistral-small-latest")
 
-    async def stream_generate(self, prompt: str):
+    async def generate_llm_response(self, context: str, user_input: str = None):
         """
-        Generate text from the LLM and stream the response.
+        Generate the next LLM response based on the context and optional user input.
+        If user_input is provided, it's incorporated into the context.
         """
-        response = await openai.ChatCompletion.acreate(
+        if user_input:
+            context += f"\nUser: {user_input}"
+
+        prompt = context
+
+        messages = [UserMessage(content=prompt)]
+        response = await self.client.chat.complete_async(
             model=self.model,
-            messages=[{"role": "user", "content": prompt}],
-            stream=True,
+            messages=messages,
         )
+        content = response.choices[0].message.content.strip()
+        return content
 
-        async for chunk in response:
-            if 'choices' in chunk:
-                choice = chunk['choices'][0]
-                if 'delta' in choice and 'content' in choice['delta']:
-                    yield choice['delta']['content']
+    async def stream_llm_response(self, context: str, user_input: str = None):
+        """
+        Stream the LLM response based on the context and optional user input.
+        """
+        if user_input:
+            context += f"\nUser: {user_input}"
 
-    def generate_choices(self, choice_type: str, context: str) -> list:
-        """
-        Generate story choices from the LLM based on context and choice type.
-        """
-        prompt = (
-            f"Based on the following context:\n{context}\n"
-            f"Generate 5 creative {choice_type} options for an interactive story."
-        )
-        response = openai.ChatCompletion.create(
+        prompt = context
+
+        messages = [UserMessage(content=prompt)]
+        response = self.client.chat.stream(
             model=self.model,
-            messages=[{"role": "user", "content": prompt}],
+            messages=messages,
         )
 
-        content = response.choices[0].message.content
-        choices = [line.strip() for line in content.splitlines() if line.strip()]
-        return choices
+        async for event in response:
+            if event.delta:
+                yield event.delta
 
-    def generate_final_story(self, context: str) -> str:
+    async def get_initial_prompt(self):
         """
-        Generate the final story from the LLM based on the accumulated context.
+        Use the LLM to generate the initial prompt to start the story.
         """
-        prompt = f"Based on the following context:\n{context}\nGenerate the final story."
-        response = openai.ChatCompletion.create(
+        system_prompt = "Let's start an interactive story. You'll ask the user questions to help shape the story. Begin by asking an open-ended question to start the story."
+
+        messages = [UserMessage(content=system_prompt)]
+        response = await self.client.chat.complete_async(
             model=self.model,
-            messages=[{"role": "user", "content": prompt}],
+            messages=messages,
         )
-
-        return response.choices[0].message.content
-
-    def generate_initial_choice_and_options(self, prompt: str):
-        """
-        Generate the initial choice type and options for starting the story.
-        """
-        response = self.generate_choices("initial", prompt)
-
-        # The first item in the response should be the choice type, and the rest should be the options
-        choice_type = response[0].replace("Choice Type:", "").strip()
-        choices = response[1:6]  # Get the next 5 lines, which are the choices
-
-        return choice_type, choices
+        initial_prompt = response.choices[0].message.content.strip()
+        return initial_prompt

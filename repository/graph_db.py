@@ -24,15 +24,14 @@ class GraphDB:
             )
             return result.single()["node_id"]
 
-    def create_edge(self, from_node_id, to_node_id, choice_text):
+    def create_edge(self, from_node_id, to_node_id, relationship_name):
         with self.driver.session() as session:
             session.run(
                 "MATCH (a:Node), (b:Node) "
                 "WHERE id(a) = $from_node_id AND id(b) = $to_node_id "
-                "CREATE (a)-[:CHOICE {text: $choice_text}]->(b)",
+                "CREATE (a)-[:%s]->(b)" % relationship_name.replace(" ", "_"),
                 from_node_id=from_node_id,
-                to_node_id=to_node_id,
-                choice_text=choice_text
+                to_node_id=to_node_id
             )
 
     def get_story_context(self, story_id):
