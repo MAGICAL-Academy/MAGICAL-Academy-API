@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Story Builder</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Interactive Story Builder</h1>
+
+        <div id="choice-container">
+            <!-- Choices will be dynamically inserted here -->
+        </div>
+
+        <div id="story-output" style="display: none;">
+            <h2>Your Story</h2>
+            <p id="story-text"></p>
+        </div>
+    </div>
+
+    <script>
+        let stack = [];
+
+        function fetchChoices(choiceType) {
+            fetch('/story/next-choices', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ choice_type: choiceType }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                displayChoices(choiceType, data.choices);
+            });
+        }
+
+        function displayChoices(choiceType, choices) {
+            const container = document.getElementById('choice-container');
+            container.innerHTML = `<h2>Select Your ${choiceType}</h2>`;
+
+            choices.forEach(choice => {
+                let button = document.createElement('button');
+                button.innerText = choice;
+                button.onclick = () => selectChoice(choiceType, choice);
+                container.appendChild(button);
+            });
+        }
+
+        function selectChoice(choiceType, choice) {
+            // Save the choice to the stack
+            stack.push({ choice_type: choiceType, choice: choice });
+
+            fetch('/story/select-choice', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ choice_type: choiceType, choice: choice }),
+            })
+            .then(() => {
+                // After hero, ask for villain, then place, job, etc.
+                if (choiceType === 'hero') {
+                    fetchChoices('villain');
+                } else if (choiceType === 'villain') {
+                    fetchChoices('place');
+                } else if (choiceType === 'place') {
+                    fetchChoices('job');
+                } else if (choiceType === 'job') {
+                    fetchChoices('theme');
+                } else if (choiceType === 'theme') {
+                    generateStory();
+                }
+            });
+        }
+
+        function generateStory() {
+            fetch('/story/start-story', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+            })
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('choice-container').style.display = 'none';
+                document.getElementById('story-output').style.display = 'block';
+                document.getElementById('story-text').innerText = data.story_intro;
+            });
+        }
+
+        // Start the process by fetching hero choices
+        fetchChoices('hero');
+    </script>
+</body>
+</html>

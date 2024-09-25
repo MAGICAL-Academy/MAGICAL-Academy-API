@@ -3,6 +3,11 @@ import logging
 from APILogger import APILogger
 from ApiKey import get_api_key
 from block_path import blocked_paths
+from routers.Assitant import router as assistant_router
+from routers.story_router import story_router
+
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 
 # Configure logging
 logging.basicConfig(level=logging.INFO,
@@ -19,10 +24,17 @@ def health_check():
 # app.include_router(content_router, prefix="/content", tags=["Content"], dependencies=[Depends(get_api_key)])
 # app.include_router(completion_router, prefix="/completion", tags=["Completion"], dependencies=[Depends(get_api_key)])
 # app.include_router(audio_router, prefix="/audio", tags=["Audio"], dependencies=[Depends(get_api_key)])
+app.include_router(story_router, prefix="/story", tags=["story"], dependencies=[Depends(get_api_key)])
 # app.include_router(assistant_router, prefix="/assistant", tags=["Assistant"], dependencies=[Depends(get_api_key)])
 # app.include_router(GoogleGenerativeAI_router, prefix="/GoogleGenerativeAI", tags=["GoogleGenerativeAI"], dependencies=[Depends(get_api_key)])
 
 app_logger = APILogger("app")
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Initialize Jinja2 Templates
+templates = Jinja2Templates(directory="templates")
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
