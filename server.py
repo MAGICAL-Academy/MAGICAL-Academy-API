@@ -2,33 +2,45 @@ import os
 import uuid
 import asyncio
 import socketio
-from aiohttp import web
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 from service.story_generator.llm_adapter import LLMAdapter
-from repository.graph_db import GraphDB  # Ensure this is implemented
+from repository.graph_db import GraphDB
 
 # Load environment variables
 load_dotenv()
 
-# Initialize Socket.IO server
-sio = socketio.AsyncServer(async_mode='aiohttp', cors_allowed_origins='*')
-app = web.Application()
-sio.attach(app)
+# Initialize Socket.IO server with ASGI mode
+sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*')
 
-# Serve static files
-static_dir = os.path.join(os.path.dirname(__file__), 'client/static')
-app.router.add_static('/static/', path=os.path.join(static_dir))
-app.router.add_get('/', lambda request: web.FileResponse(os.path.join(static_dir, 'index.html')))
+# Initialize FastAPI app
+fastapi_app = FastAPI()
+
+# Mount static files
+fastapi_app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Serve index.html at root '/'
+@fastapi_app.get("/", response_class=HTMLResponse)
+async def get():
+    with open(os.path.join("static", "index.html")) as f:
+        return HTMLResponse(content=f.read(), status_code=200)
 
 # Initialize LLM adapter and database
 llm = LLMAdapter()
 
-graph_db_uri = os.getenv("GRAPH_DB_URI")
-graph_db_username = os.getenv("GRAPH_DB_USERNAME")
-graph_db_password = os.getenv("GRAPH_DB_PASSWORD")
+try:
+    graph_db_uri = os.getenv("GRAPH_DB_URI")
+    graph_db_username = os.getenv("GRAPH_DB_USERNAME")
+    graph_db_password = os.getenv("GRAPH_DB_PASSWORD")
+except:
+    graph_db_uri = os.environ["GRAPH_DB_URI"]
+    graph_db_username = os.environ["GRAPH_DB_USERNAME"]
+    graph_db_password = os.environ["GRAPH_DB_PASSWORD"]
 db = GraphDB(graph_db_uri, graph_db_username, graph_db_password)
 
-# Event handlers
+# Socket.IO event handlers
 @sio.event
 async def connect(sid, environ):
     print(f"Client connected: {sid}")
@@ -96,6 +108,10 @@ async def user_response(sid, data):
         'question': llm_response
     }, room=sid)
 
-# Run the Socket.IO server
-if __name__ == '__main__':
-    web.run_app(app, host='0.0.0.0', port=8000)
+# Combine FastAPI and Socket.IO into a single ASGI application
+combined_app = socketio.ASGIApp(sio, other_asgi_app=fastapi_app)
+
+# If you have additional middleware or applications, ensure they are compatible with ASGI3
+
+# To run the server with Uvicorn, use the combined_app
+# Command: uvicorn server:combined_app --reload
